@@ -923,7 +923,7 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
                 if similarity >= relevance_threshold:
                     stream_supervisor_thought(
                         config.blocks.supervisor_block.model,
-                        f"Identified contradiction. Proposing append to '{target_note}' with discrepancy log.",
+                        f"Identified duplicate. Proposing merge into '{existing_note['title']}'.",
                     )
                     # Merge context_evidence into the existing note
                     existing_note["merged_evidence"] = (
