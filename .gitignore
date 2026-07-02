@@ -1,0 +1,35 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.agents/
+*.env
+
+# Testing & Logs
+.ruff_cache/
+.pytest_cache/
+*.log
+tests/quarantine/**
+tests/examples/**/
+
+# Databases & local runs
+.deepeval/
+.lancedb/
+**/.lancedb/
+
+# IDEs and OS files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# StrataSift local configurations
+.stratasift/
+**/.stratasift/**
+

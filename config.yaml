@@ -1,0 +1,43 @@
+system:
+  obsidian_vault_path: "./tests/examples"
+  quarantine_path: "./tests/quarantine"
+  domain_interests:
+    - battery materials
+    - solid-state electrolytes
+    - lithium-ion conductors
+    - heterogeneous interfaces
+  methodology_interests:
+    - active learning
+    - machine learning force fields
+    - DFT barrier mapping
+    - ab initio molecular dynamics
+    - MLIP architectures
+
+blocks:
+  supervisor_block:
+    provider: "ollama_cloud"
+    model: "gemma4:31b-cloud"
+    temperature: 0.1
+    relevance_threshold: 0.75
+  analysis_block:
+    provider: "ollama_cloud"
+    model: "gemma4:31b-cloud"
+    temperature: 0.0
+    max_debate_loops: 3
+
+providers:
+  gemini:
+    model: "gemini-1.5-pro"
+    temperature: 0.2
+  ollama_local:
+    model: "gemma4:e4b"
+    base_url: "http://localhost:11434"
+    temperature: 0.0
+  ollama_cloud:
+    model: "gemma4:31b-cloud"
+    base_url: "https://ollama.com"
+    temperature: 0.0
+
+evaluation:
+  threshold: 0.90
+  model: "gemini-1.5-pro"
