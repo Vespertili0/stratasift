@@ -152,6 +152,8 @@ class AppConfig(BaseModel):
         This prevents crashing on startup if inactive providers are missing config values
         or environment keys (complying with FR-1).
         """
+        if os.environ.get("STRATASIFT_MOCK", "false").lower() == "true":
+            return
         self._validate_provider(self.blocks.supervisor_block.provider)
         self._validate_provider(self.blocks.analysis_block.provider)
 
