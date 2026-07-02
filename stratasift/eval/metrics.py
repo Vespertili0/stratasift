@@ -57,7 +57,7 @@ def run_evaluation_suite(vault_path: Path, config: AppConfig) -> List[Dict[str, 
                 )
             else:
                 try:
-                    #import deepeval
+                    # import deepeval
 
                     scores = EvaluationScores(
                         extraction_faithfulness=0.91,
