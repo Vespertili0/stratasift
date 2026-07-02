@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional
 
 
 class SanitisedLiterature(BaseModel):
@@ -44,19 +44,19 @@ class AtomicInsight(BaseModel):
     )
     context_evidence: Any = Field(
         default="",
-        description="The bulleted source data and examples extracted from the text."
+        description="The bulleted source data and examples extracted from the text.",
     )
     related_vectors: list[str] = Field(
         default_factory=list,
-        description="List of Obsidian WikiLinks generated for vault topology."
+        description="List of Obsidian WikiLinks generated for vault topology.",
     )
     data_points: Dict[str, Any] = Field(
-        default_factory=dict, 
-        description="Extracted technical parameters relevant to the insight."
+        default_factory=dict,
+        description="Extracted technical parameters relevant to the insight.",
     )
     source_quotes: list[str] = Field(
-        default_factory=list, 
-        description="Verbatim source quotes supporting the insight."
+        default_factory=list,
+        description="Verbatim source quotes supporting the insight.",
     )
 
     @field_validator("related_vectors", mode="before")
@@ -83,6 +83,7 @@ class AtomicInsight(BaseModel):
             return v
         if isinstance(v, (dict, list)):
             import json
+
             return json.dumps(v, indent=2)
         return str(v)
 

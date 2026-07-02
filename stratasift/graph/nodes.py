@@ -195,14 +195,16 @@ class MockStructuredModel:
 
         elif self.schema == AtomicInsightList:
             if "biomass" in prompt_lower:
-                return AtomicInsightList(insights=[
-                    AtomicInsight(
-                        title="Biomass pyrolysis yields biochar and bio-oil under nitrogen atmosphere",
-                        core_insight="Pyrolysis of pine wood biomass at 500°C under nitrogen atmosphere. Slower heating rates increase biochar yield to 65%, while rapid heating increases bio-oil fractions. This provides an efficient framework for converting raw wood sources into usable biofuel products.",
-                        context_evidence="**[Source: variant_case_biomass.md]**\n* **Data Point:** Pyrolysis at 500°C\n* **Example:** Biochar yield 65%",
-                        related_vectors=["variant_case_biomass"],
-                    )
-                ])
+                return AtomicInsightList(
+                    insights=[
+                        AtomicInsight(
+                            title="Biomass pyrolysis yields biochar and bio-oil under nitrogen atmosphere",
+                            core_insight="Pyrolysis of pine wood biomass at 500°C under nitrogen atmosphere. Slower heating rates increase biochar yield to 65%, while rapid heating increases bio-oil fractions. This provides an efficient framework for converting raw wood sources into usable biofuel products.",
+                            context_evidence="**[Source: variant_case_biomass.md]**\n* **Data Point:** Pyrolysis at 500°C\n* **Example:** Biochar yield 65%",
+                            related_vectors=["variant_case_biomass"],
+                        )
+                    ]
+                )
             else:
                 if (
                     "retry" in prompt_lower
@@ -211,24 +213,28 @@ class MockStructuredModel:
                     or "incorrect" in prompt_lower
                 ):
                     # After retry correction — yield corrected to 85%
-                    return AtomicInsightList(insights=[
-                        AtomicInsight(
-                            title="Sintering LLZO solid-state electrolyte yields high ionic conductivity",
-                            core_insight="Solid-state battery synthesis using LLZO electrolyte. Sintering protocol at 800°C for 6 hours yields a cubic phase with ionic conductivity of 1.2e-4 S/cm and an overall yield of 85%. This achieves optimal performance parameters required for high-energy density storage applications.",
-                            context_evidence="**[Source: success_case_battery.md]**\n* **Aggregated Insight from success_case_battery.md:** Sintering protocol at 800°C for 6 hours yields a cubic phase with ionic conductivity of 1.2e-4 S/cm and an overall yield of 85%. [[success_case_battery]]",
-                            related_vectors=["success_case_battery"],
-                        )
-                    ])
+                    return AtomicInsightList(
+                        insights=[
+                            AtomicInsight(
+                                title="Sintering LLZO solid-state electrolyte yields high ionic conductivity",
+                                core_insight="Solid-state battery synthesis using LLZO electrolyte. Sintering protocol at 800°C for 6 hours yields a cubic phase with ionic conductivity of 1.2e-4 S/cm and an overall yield of 85%. This achieves optimal performance parameters required for high-energy density storage applications.",
+                                context_evidence="**[Source: success_case_battery.md]**\n* **Aggregated Insight from success_case_battery.md:** Sintering protocol at 800°C for 6 hours yields a cubic phase with ionic conductivity of 1.2e-4 S/cm and an overall yield of 85%. [[success_case_battery]]",
+                                related_vectors=["success_case_battery"],
+                            )
+                        ]
+                    )
                 else:
                     # First pass — yield has the intentional discrepancy (95%)
-                    return AtomicInsightList(insights=[
-                        AtomicInsight(
-                            title="LLZO electrolyte conductivity and yield metrics analysis for final compound",
-                            core_insight="Analysis of final LLZO compound performance through systematic observation. The synthesised compound possessed an impressive ionic conductivity of 1.2e-4 S/cm while also yielding an overall 95% conversion rate. This distinct combination demonstrates strong potential for high-capacity energy storage solutions.",
-                            context_evidence="Bulleted summary of data findings.",
-                            related_vectors=["success_case_battery"],
-                        )
-                    ])
+                    return AtomicInsightList(
+                        insights=[
+                            AtomicInsight(
+                                title="LLZO electrolyte conductivity and yield metrics analysis for final compound",
+                                core_insight="Analysis of final LLZO compound performance through systematic observation. The synthesised compound possessed an impressive ionic conductivity of 1.2e-4 S/cm while also yielding an overall 95% conversion rate. This distinct combination demonstrates strong potential for high-capacity energy storage solutions.",
+                                context_evidence="Bulleted summary of data findings.",
+                                related_vectors=["success_case_battery"],
+                            )
+                        ]
+                    )
 
         elif self.schema == NetworkDecision:
             if "biomass" in prompt_lower:
@@ -305,11 +311,7 @@ def _build_llm(block_cfg, config):
             model=block_cfg.model,
             base_url=oc_cfg.base_url if oc_cfg else "https://ollama.com",
             temperature=block_cfg.temperature,
-            client_kwargs={
-                "headers": {
-                    "Authorization": f"Bearer {oc_cfg.api_key}"
-                }
-            }
+            client_kwargs={"headers": {"Authorization": f"Bearer {oc_cfg.api_key}"}}
             if oc_cfg and oc_cfg.api_key
             else {},
         )
@@ -418,17 +420,18 @@ def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
     if effective_relevance >= threshold:
         stream_supervisor_thought(
             config.blocks.supervisor_block.model,
-            f"Triage passed (Domain: {result.domain_relevance:.2f}, Methodology: {result.methodology_relevance:.2f}, Match: {match_type}). Generated reading directive."
+            f"Triage passed (Domain: {result.domain_relevance:.2f}, Methodology: {result.methodology_relevance:.2f}, Match: {match_type}). Generated reading directive.",
         )
     else:
         stream_supervisor_thought(
             config.blocks.supervisor_block.model,
-            f"Triage failed (Domain: {result.domain_relevance:.2f}, Methodology: {result.methodology_relevance:.2f}). Paper is irrelevant."
+            f"Triage failed (Domain: {result.domain_relevance:.2f}, Methodology: {result.methodology_relevance:.2f}). Paper is irrelevant.",
         )
 
     # Initialise run_id and context_db_path early if missing
     run_id = state.get("run_id") or generate_insight_id()
     from pathlib import Path
+
     quarantine_path = Path(config.system.quarantine_path)
     context_db_path = state.get("context_db_path") or str(
         quarantine_path / f"tmp-context-{run_id}.json"
@@ -483,7 +486,9 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
     """
     _init_llms()
     config = get_runtime_config()
-    model = specialist_llm.with_structured_output(AtomicInsightList, method="json_schema")
+    model = specialist_llm.with_structured_output(
+        AtomicInsightList, method="json_schema"
+    )
 
     source_doc = state["source_doc"]
     methods_text = source_doc.methods or ""
@@ -575,7 +580,7 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
 
     # Trace log
     action = "Re-analysing" if feedback_text else "Analysing"
-    
+
     spec_insights = None
     with AnalysisSpinner(f"{action} full paper ({match_type} mode)..."):
         for attempt in range(1, 3):
@@ -586,7 +591,9 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
                 else:
                     raise ValueError("No insights returned by the model.")
             except Exception as e:
-                log_event(f"      ⚠️ Attempt {attempt} for consolidated synthesis failed: {str(e)}")
+                log_event(
+                    f"      ⚠️ Attempt {attempt} for consolidated synthesis failed: {str(e)}"
+                )
                 if attempt == 2:
                     raise ValueError(
                         f"LLM failed to satisfy AtomicInsightList constraints after 2 attempts. Error: {str(e)}"
@@ -597,13 +604,15 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
     atomic_insights = []
     if spec_insights and spec_insights.insights:
         for ins in spec_insights.insights:
-            raw_extractions.append({
-                "specialist_type": "consolidated",
-                "data_points": {},
-                "source_quotes": [],
-                "title": ins.title,
-                "core_insight": ins.core_insight,
-            })
+            raw_extractions.append(
+                {
+                    "specialist_type": "consolidated",
+                    "data_points": {},
+                    "source_quotes": [],
+                    "title": ins.title,
+                    "core_insight": ins.core_insight,
+                }
+            )
             atomic_insights.append(ins)
 
     return {
@@ -618,24 +627,26 @@ def format_source_block(
     data_points: Dict[str, Any],
     source_quotes: List[str],
     verified: bool = True,
-    feedback: str = ""
+    feedback: str = "",
 ) -> str:
     filename_stem = Path(source_filename).stem if source_filename else "unknown"
     header_suffix = " ⚠️ (Unverified)" if not verified else ""
     block = f"### Source: [[{filename_stem}]]{header_suffix}\n\n"
-    
+
     if not verified and feedback:
         block += f"> **Discrepancy**: {feedback}\n\n"
-        
+
     block += "**LLM-generated evidence**:\n"
-    evidence_lines = [line.strip() for line in evidence.strip().splitlines() if line.strip()]
+    evidence_lines = [
+        line.strip() for line in evidence.strip().splitlines() if line.strip()
+    ]
     for line in evidence_lines:
         if line.startswith("*") or line.startswith("-"):
             block += f"{line}\n"
         else:
             block += f"* {line}\n"
     block += "\n"
-    
+
     block += "**Structured technical parameters**:\n"
     if data_points:
         for k, v in data_points.items():
@@ -643,7 +654,7 @@ def format_source_block(
     else:
         block += "* None\n"
     block += "\n"
-    
+
     block += "**Supporting quotes**:\n"
     if source_quotes:
         for q in source_quotes:
@@ -651,23 +662,29 @@ def format_source_block(
             block += f'* "{q_stripped}"\n'
     else:
         block += "* None\n"
-        
+
     return block
 
 
-def replace_or_append_source_block(markdown_content: str, source_filename: str, new_source_block: str) -> str:
+def replace_or_append_source_block(
+    markdown_content: str, source_filename: str, new_source_block: str
+) -> str:
     filename_stem = Path(source_filename).stem if source_filename else "unknown"
     escaped_stem = re.escape(filename_stem)
     pattern = rf"(### Source:\s*\[\[{escaped_stem}\]\](?:\s*⚠️\s*\(Unverified\))?)(.*?)(?=\n### Source:\s*\[\[|\Z)"
-    
+
     match = re.search(pattern, markdown_content, re.DOTALL | re.IGNORECASE)
     if match:
         start, end = match.span()
-        updated_content = markdown_content[:start] + new_source_block.strip() + markdown_content[end:]
+        updated_content = (
+            markdown_content[:start] + new_source_block.strip() + markdown_content[end:]
+        )
         return updated_content
     else:
         if "## Context & Evidence" not in markdown_content:
-            markdown_content = markdown_content.rstrip() + "\n\n---\n## Context & Evidence\n"
+            markdown_content = (
+                markdown_content.rstrip() + "\n\n---\n## Context & Evidence\n"
+            )
         if not markdown_content.endswith("\n"):
             markdown_content += "\n"
         updated_content = markdown_content + "\n" + new_source_block.strip() + "\n"
@@ -685,7 +702,9 @@ def reflection_review_node(state: PaperIngestionState) -> Dict[str, Any]:
 
     _init_llms()
     config = get_runtime_config()
-    model = specialist_llm.with_structured_output(ReflectionDecision, method="json_schema")
+    model = specialist_llm.with_structured_output(
+        ReflectionDecision, method="json_schema"
+    )
 
     source_doc = state["source_doc"]
     methods_text = source_doc.methods or ""
@@ -707,8 +726,12 @@ def reflection_review_node(state: PaperIngestionState) -> Dict[str, Any]:
         [
             {
                 "title": ins.title if hasattr(ins, "title") else str(ins),
-                "core_insight": ins.core_insight if hasattr(ins, "core_insight") else "",
-                "context_evidence": ins.context_evidence if hasattr(ins, "context_evidence") else "",
+                "core_insight": ins.core_insight
+                if hasattr(ins, "core_insight")
+                else "",
+                "context_evidence": ins.context_evidence
+                if hasattr(ins, "context_evidence")
+                else "",
             }
             for ins in atomic_insights
         ],
@@ -752,7 +775,14 @@ def reflection_review_node(state: PaperIngestionState) -> Dict[str, Any]:
 
     # Write to tmp-ContextDB JSON file in quarantine folder
     from pathlib import Path
-    db_path = Path(state.get("context_db_path") or (Path(config.system.quarantine_path) / f"tmp-context-{state.get('run_id')}.json"))
+
+    db_path = Path(
+        state.get("context_db_path")
+        or (
+            Path(config.system.quarantine_path)
+            / f"tmp-context-{state.get('run_id')}.json"
+        )
+    )
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     insights_db = {}
@@ -769,15 +799,19 @@ def reflection_review_node(state: PaperIngestionState) -> Dict[str, Any]:
             with open(db_path, "r", encoding="utf-8") as f:
                 db_data = json.load(f)
         except Exception as e:
-            click.echo(f"      ⚠️ Failed to read existing tmp-ContextDB at {db_path}: {e}")
+            click.echo(
+                f"      ⚠️ Failed to read existing tmp-ContextDB at {db_path}: {e}"
+            )
 
-    db_data.update({
-        "insights": insights_db,
-        "verified": result.verified,
-        "feedback": result.feedback if not result.verified else "",
-        "insight_dossier": result.insight_dossier,
-        "status": "reviewed"
-    })
+    db_data.update(
+        {
+            "insights": insights_db,
+            "verified": result.verified,
+            "feedback": result.feedback if not result.verified else "",
+            "insight_dossier": result.insight_dossier,
+            "status": "reviewed",
+        }
+    )
 
     try:
         with open(db_path, "w", encoding="utf-8") as f:
@@ -814,23 +848,35 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
     threshold = config.blocks.supervisor_block.relevance_threshold or 0.75
 
     if state.get("relevance_score", 0.0) < threshold:
-        stream_supervisor_thought("", "Relevance triage score below threshold. Bypassing analysis block and network insertion.")
+        stream_supervisor_thought(
+            "",
+            "Relevance triage score below threshold. Bypassing analysis block and network insertion.",
+        )
         return {
             "vault_context": [],
             "final_markdown": "",
-            "routing_results": [{
-                "decision": "bypass",
-                "target_note": "",
-                "note_title": "",
-                "markdown_content": "",
-                "insight": None
-            }],
+            "routing_results": [
+                {
+                    "decision": "bypass",
+                    "target_note": "",
+                    "note_title": "",
+                    "markdown_content": "",
+                    "insight": None,
+                }
+            ],
             "in_flight_notes": [],
         }
 
     # Load verification status from tmp-ContextDB JSON file
     from pathlib import Path
-    db_path = Path(state.get("context_db_path") or (Path(config.system.quarantine_path) / f"tmp-context-{state.get('run_id')}.json"))
+
+    db_path = Path(
+        state.get("context_db_path")
+        or (
+            Path(config.system.quarantine_path)
+            / f"tmp-context-{state.get('run_id')}.json"
+        )
+    )
 
     verified = True
     discrepancy_feedback = ""
@@ -844,7 +890,9 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
         except Exception as e:
             click.echo(f"      ⚠️ Failed to read tmp-ContextDB at {db_path}: {e}")
 
-    stream_supervisor_thought(config.blocks.supervisor_block.model, "Querying Librarian Tool (LanceDB)...")
+    stream_supervisor_thought(
+        config.blocks.supervisor_block.model, "Querying Librarian Tool (LanceDB)..."
+    )
 
     from stratasift.tools.librarian import LanceLibrarian
 
@@ -858,7 +906,7 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
     routing_results = []
     note_contents = {}  # Tracks in-memory markdown content for target notes
     vault_context_titles = []
-    
+
     relevance_threshold = config.blocks.supervisor_block.relevance_threshold or 0.75
 
     for insight in state.get("atomic_insights", []):
@@ -875,7 +923,7 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
                 if similarity >= relevance_threshold:
                     stream_supervisor_thought(
                         config.blocks.supervisor_block.model,
-                        f"Identified contradiction. Proposing append to '{target_note}' with discrepancy log."
+                        f"Identified contradiction. Proposing append to '{target_note}' with discrepancy log.",
                     )
                     # Merge context_evidence into the existing note
                     existing_note["merged_evidence"] = (
@@ -890,12 +938,14 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
             continue
 
         # Track this insight in the in-flight queue
-        in_flight_notes.append({
-            "title": insight.title,
-            "search_block": search_block,
-            "vector": insight_vector,
-            "merged_evidence": "",
-        })
+        in_flight_notes.append(
+            {
+                "title": insight.title,
+                "search_block": search_block,
+                "vector": insight_vector,
+                "merged_evidence": "",
+            }
+        )
 
         matches = librarian.search_vault(search_block, n_results=3)
         similarity = matches[0].get("similarity", 1.0) if matches else 0.0
@@ -912,7 +962,7 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
                 vault_context_titles.append(matches[0]["title"])
             stream_supervisor_thought(
                 config.blocks.supervisor_block.model,
-                f"Synthesising final note for insight '{insight.title}'..."
+                f"Synthesising final note for insight '{insight.title}'...",
             )
         else:
             decision = "create"
@@ -920,11 +970,15 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
             stream_supervisor_thought(
                 config.blocks.supervisor_block.model,
                 f"Routing insight '{insight.title}' to Create New action"
-                + (f" (Score {similarity:.2f} < {relevance_threshold})" if matches else " (Database empty)")
+                + (
+                    f" (Score {similarity:.2f} < {relevance_threshold})"
+                    if matches
+                    else " (Database empty)"
+                ),
             )
 
         note_title = insight.title
-        
+
         if decision == "append":
             if target_note in note_contents:
                 existing_content = note_contents[target_note]
@@ -939,13 +993,17 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
             updated_content = replace_or_append_source_block(
                 markdown_content=existing_content,
                 source_filename=state.get("source_filename", ""),
-                new_source_block=insight.context_evidence
+                new_source_block=insight.context_evidence,
             )
 
             if not verified:
-                updated_content = updated_content.replace('status: "verified"', 'status: "unverified"')
+                updated_content = updated_content.replace(
+                    'status: "verified"', 'status: "unverified"'
+                )
                 if "## Discrepancy Log" not in updated_content:
-                    updated_content += f"\n\n---\n## Discrepancy Log\n> ⚠️ {discrepancy_feedback}\n"
+                    updated_content += (
+                        f"\n\n---\n## Discrepancy Log\n> ⚠️ {discrepancy_feedback}\n"
+                    )
 
             note_contents[target_note] = updated_content
             final_markdown_for_this_insight = updated_content
@@ -954,23 +1012,30 @@ def supervisor_network_node(state: PaperIngestionState) -> Dict[str, Any]:
             dummy_id = generate_insight_id()
             date_str = datetime.date.today().strftime("%Y-%m-%d")
             new_content = format_insight(insight, dummy_id, date_str, ["insight"])
-            
+
             if not verified:
-                new_content = new_content.replace('status: "verified"', 'status: "unverified"')
-                new_content += f"\n\n---\n## Discrepancy Log\n> ⚠️ {discrepancy_feedback}\n"
-                
+                new_content = new_content.replace(
+                    'status: "verified"', 'status: "unverified"'
+                )
+                new_content += (
+                    f"\n\n---\n## Discrepancy Log\n> ⚠️ {discrepancy_feedback}\n"
+                )
+
             from stratasift.utils.file_io import sanitise_filename
+
             target_note_created = f"{sanitise_filename(note_title)}.md"
             note_contents[target_note_created] = new_content
             final_markdown_for_this_insight = new_content
 
-        routing_results.append({
-            "decision": decision,
-            "target_note": target_note,
-            "note_title": note_title,
-            "markdown_content": final_markdown_for_this_insight,
-            "insight": insight
-        })
+        routing_results.append(
+            {
+                "decision": decision,
+                "target_note": target_note,
+                "note_title": note_title,
+                "markdown_content": final_markdown_for_this_insight,
+                "insight": insight,
+            }
+        )
 
     final_markdown = "\n\n".join(r["markdown_content"] for r in routing_results)
 

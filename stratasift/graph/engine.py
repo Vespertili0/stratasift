@@ -16,6 +16,7 @@ def continue_to_specialist(state: PaperIngestionState):
     consolidated specialist node.
     """
     from stratasift.config import get_runtime_config
+
     config = get_runtime_config()
     threshold = config.blocks.supervisor_block.relevance_threshold or 0.75
 
@@ -33,13 +34,14 @@ def continue_after_reflection(state: PaperIngestionState):
     Otherwise, proceeds to the Supervisor network node.
     """
     from stratasift.config import get_runtime_config
+
     config = get_runtime_config()
     max_loops = (
         config.blocks.analysis_block.max_debate_loops
         if config.blocks.analysis_block.max_debate_loops is not None
         else 3
     )
-    
+
     feedback = state.get("feedback")
     retry_count = state.get("retry_count", 0)
 
@@ -74,7 +76,9 @@ workflow.add_edge("Consolidated_Specialist", "Reflection_Review")
 
 # Reflection verification routing
 workflow.add_conditional_edges(
-    "Reflection_Review", continue_after_reflection, ["Consolidated_Specialist", "Supervisor_Network"]
+    "Reflection_Review",
+    continue_after_reflection,
+    ["Consolidated_Specialist", "Supervisor_Network"],
 )
 
 # Compile final graph

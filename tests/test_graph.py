@@ -141,6 +141,7 @@ class TestGraph(unittest.TestCase):
 
         # Clean up database file
         from pathlib import Path
+
         db_path = Path(final_state["context_db_path"])
         self.assertTrue(db_path.exists())
         db_path.unlink()
@@ -158,6 +159,7 @@ class TestGraph(unittest.TestCase):
         mock_librarian_class.return_value = mock_librarian
 
         from stratasift.config import get_runtime_config, set_runtime_config
+
         config = get_runtime_config()
 
         # Override debate loops limit to 0
@@ -171,7 +173,7 @@ class TestGraph(unittest.TestCase):
                 metadata={"keywords": ["battery", "electrolyte"]},
                 abstract_intro="Abstract describing sintering of LLZO solid-state battery electrolyte.",
                 methods="The sintering was performed at 800°C for 6h in air. Precursors were mixed.",
-                results_discussion="Final compound had ionic conductivity of 1.2e-4 S/cm yielding an overall 95% conversion.", # triggers discrepancy
+                results_discussion="Final compound had ionic conductivity of 1.2e-4 S/cm yielding an overall 95% conversion.",  # triggers discrepancy
                 conclusions=None,
             )
 
@@ -203,11 +205,14 @@ class TestGraph(unittest.TestCase):
             # Verify final_markdown contains the unverified status and discrepancy log
             self.assertIn('status: "unverified"', final_state["final_markdown"])
             self.assertIn("## Discrepancy Log", final_state["final_markdown"])
-            self.assertIn("Discrepancy found in Yield metric", final_state["final_markdown"])
+            self.assertIn(
+                "Discrepancy found in Yield metric", final_state["final_markdown"]
+            )
 
             # Verify tmp-ContextDB JSON file exists and is populated
             import json
             from pathlib import Path
+
             db_path = Path(final_state["context_db_path"])
             self.assertTrue(db_path.exists())
             with open(db_path, "r", encoding="utf-8") as f:
@@ -272,6 +277,7 @@ class TestGraph(unittest.TestCase):
 
         # Clean up database file
         from pathlib import Path
+
         db_path_str = final_state.get("context_db_path")
         if db_path_str:
             db_path = Path(db_path_str)
@@ -279,7 +285,9 @@ class TestGraph(unittest.TestCase):
                 db_path.unlink()
 
     @patch("stratasift.tools.librarian.LanceLibrarian")
-    def test_deduplication_merges_similar_insights(self, mock_librarian_class: MagicMock) -> None:
+    def test_deduplication_merges_similar_insights(
+        self, mock_librarian_class: MagicMock
+    ) -> None:
         """Verify that in-flight deduplication merges semantically similar insights."""
         mock_librarian = MagicMock()
         mock_librarian.search_vault.return_value = []
@@ -287,6 +295,7 @@ class TestGraph(unittest.TestCase):
 
         # Create two near-identical AtomicInsight objects
         from stratasift.core.models import AtomicInsight
+
         insight_a = AtomicInsight(
             title="Sintering LLZO solid-state electrolyte yields high ionic conductivity",
             core_insight="Solid-state battery synthesis using LLZO electrolyte. Sintering protocol at 800°C for 6 hours yields a cubic phase with ionic conductivity of 1.2e-4 S/cm and an overall yield of 85%. This achieves optimal performance parameters required for high-energy density storage applications.",
@@ -302,6 +311,7 @@ class TestGraph(unittest.TestCase):
 
         from stratasift.graph.nodes import supervisor_network_node
         from stratasift.config import get_runtime_config, set_runtime_config
+
         config = get_runtime_config()
         set_runtime_config(config)
 

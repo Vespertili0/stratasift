@@ -32,4 +32,3 @@ tests/examples/**/
 # StrataSift local configurations
 .stratasift/
 **/.stratasift/**
-

@@ -13,9 +13,7 @@ METHODS_REGEX = (
     r"(?i)^##?\s+(Methods|Methodology|Experimental\s+Section|Materials\s+and\s+Methods)"
 )
 RESULTS_REGEX = r"(?i)^##?\s+(Results|Discussion|Results\s+and\s+Discussion)"
-CONCLUSION_REGEX = (
-    r"(?i)^##?\s+(Conclusions?|Outlook|Summary\s+and\s+Outlook|Concluding\s+Remarks|Perspectives)"
-)
+CONCLUSION_REGEX = r"(?i)^##?\s+(Conclusions?|Outlook|Summary\s+and\s+Outlook|Concluding\s+Remarks|Perspectives)"
 
 
 def _segment_markdown_content(
@@ -67,7 +65,6 @@ def _segment_markdown_content(
             elif current_state == "conclusions":
                 conclusions_lines.append(s_line)
 
-
     # 3. Baseline validation
     if not matched_sections:
         raise ValueError("Failed to identify core document structural layout sections.")
@@ -80,9 +77,7 @@ def _segment_markdown_content(
         else None
     )
     conclusions_text = (
-        "\n".join(conclusions_lines).strip()
-        if conclusions_lines
-        else None
+        "\n".join(conclusions_lines).strip() if conclusions_lines else None
     )
 
     # Check that abstract_intro is populated since it is a required field

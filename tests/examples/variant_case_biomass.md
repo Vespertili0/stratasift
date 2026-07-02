@@ -7,7 +7,7 @@ tags: [biomass, catalysis, zeolites]
 # Catalytic Pyrolysis of Lignin Using Mesoporous Zeolites
 
 ## Summary
-Transforming industrial lignin into high-value aromatic chemical building blocks demands high catalyst selectivity. This paper explores modified ZSM-5 configurations optimized with hierarchical porous networks. 
+Transforming industrial lignin into high-value aromatic chemical building blocks demands high catalyst selectivity. This paper explores modified ZSM-5 configurations optimized with hierarchical porous networks.
 
 ## 1. Introduction & Background
 Lignocellulosic biomass stands as an abundant renewable carbon source [Martinez](https://doi.org/10.1038/s41560-025-0112). Traditional pyrolytic strategies yield highly oxygenated bio-oils requiring extensive hydrodeoxygenation. Recent efforts highlight zeolitic intervention [Wang & Zhao](https://link.springer.com/article/10.1007/s10562-026-9).

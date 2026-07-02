@@ -4,13 +4,16 @@ from typing import Generator
 import click
 from rich.console import Console
 
+
 class TUIConsole:
     """Encapsulates the Rich console to handle Graceful Degradation (Edge Case 3)."""
-    
+
     def __init__(self) -> None:
         self.is_interactive = sys.stdout.isatty()
         # If not interactive, Rich automatically strips ANSI codes when force_terminal=False.
-        self.console = Console(force_terminal=self.is_interactive, force_interactive=self.is_interactive)
+        self.console = Console(
+            force_terminal=self.is_interactive, force_interactive=self.is_interactive
+        )
 
     def print(self, message: str, nl: bool = True) -> None:
         """Print a message to the console."""
@@ -21,10 +24,14 @@ tui_console = TUIConsole()
 
 
 @contextmanager
-def AnalysisSpinner(message: str = "Analysis Block Active: Populating tmp-ContextDB...") -> Generator[None, None, None]:
+def AnalysisSpinner(
+    message: str = "Analysis Block Active: Populating tmp-ContextDB...",
+) -> Generator[None, None, None]:
     """Provides a spinner that gracefully degrades to static logging in non-TTY environments."""
     if tui_console.is_interactive:
-        with tui_console.console.status(f"[bold cyan]⚙️  {message}[/bold cyan]", spinner="dots"):
+        with tui_console.console.status(
+            f"[bold cyan]⚙️  {message}[/bold cyan]", spinner="dots"
+        ):
             yield
     else:
         click.echo(f"   ⚙️  {message}")

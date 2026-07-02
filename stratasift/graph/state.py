@@ -21,13 +21,17 @@ class PaperIngestionState(TypedDict):
     final_markdown: str  # The compiled Obsidian-flavoured markdown note
 
     # Operational keys for coordination and routing
-    relevance_score: float  # Computed max(domain, methodology) for backward compatibility
+    relevance_score: (
+        float  # Computed max(domain, methodology) for backward compatibility
+    )
     feedback: Optional[
         Dict[str, str]
     ]  # Dict mapping specialist type to feedback string
     atomic_insights: List[Any]  # List of synthesised Pydantic AtomicInsight models
     source_filename: str  # Original name of the ingested markdown file
-    routing_results: List[Dict[str, Any]]  # List of networking results and accumulated markdown contents
+    routing_results: List[
+        Dict[str, Any]
+    ]  # List of networking results and accumulated markdown contents
     run_id: str  # Unique identifier for the current run
     context_db_path: str  # Path to the temporary JSON context DB in quarantine
 

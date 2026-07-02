@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List
 import lancedb
 
 from stratasift.utils.embeddings import SimpleEmbeddingFunction

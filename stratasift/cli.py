@@ -59,7 +59,10 @@ def check() -> None:
         click.echo("🤖 Local Provider (Ollama): Not Mapped")
 
     # 4. Check Ollama Cloud engine
-    active_providers = {config.blocks.supervisor_block.provider, config.blocks.analysis_block.provider}
+    active_providers = {
+        config.blocks.supervisor_block.provider,
+        config.blocks.analysis_block.provider,
+    }
     if "ollama_cloud" in active_providers:
         oc_config = config.providers.ollama_cloud
         result = check_ollama_cloud_health(
@@ -75,7 +78,9 @@ def check() -> None:
             )
             sys.exit(1)
     else:
-        click.echo(f"☁️ Ollama Cloud Engine: Inactive (Active block providers: {', '.join(active_providers)})")
+        click.echo(
+            f"☁️ Ollama Cloud Engine: Inactive (Active block providers: {', '.join(active_providers)})"
+        )
 
     click.echo("\n🎉 Foundation solid. Base data layouts ready for Epic-05.")
 
@@ -179,18 +184,23 @@ def ingest(directory_path: Path) -> None:
                 processed_count += 1
             else:
                 routing_results = final_state.get("routing_results", [])
-                
+
                 from stratasift.utils.file_io import sanitise_filename
                 from stratasift.tools.vector_store import LanceVectorStore
+
                 vector_store = LanceVectorStore(vault_path)
 
-                click.echo("\n💾 [File IO] Writing synthesized notes to Obsidian Vault...")
+                click.echo(
+                    "\n💾 [File IO] Writing synthesized notes to Obsidian Vault..."
+                )
 
                 for result in routing_results:
                     if result.get("decision") == "bypass":
                         continue
 
-                    target_note_title = result.get("target_note") or result.get("note_title", md_file.stem)
+                    target_note_title = result.get("target_note") or result.get(
+                        "note_title", md_file.stem
+                    )
                     if not target_note_title.endswith(".md"):
                         target_note_file = target_note_title + ".md"
                     else:
@@ -212,17 +222,20 @@ def ingest(directory_path: Path) -> None:
                             title=insight.title,
                             search_block=insight.search_block,
                         )
-                        click.echo(f"   ✅ Vector indexed successfully for '{insight.title}'.")
+                        click.echo(
+                            f"   ✅ Vector indexed successfully for '{insight.title}'."
+                        )
 
                 # Move original file to Sources folder
                 sources_dir = vault_path / "Sources"
                 sources_dir.mkdir(parents=True, exist_ok=True)
                 dest_path = sources_dir / md_file.name
-                
+
                 if md_file.resolve() != dest_path.resolve():
                     if dest_path.exists():
                         dest_path.unlink()
                     import shutil
+
                     shutil.move(str(md_file), str(dest_path))
                     click.echo(f"   📦 Relocated source file to {dest_path}")
 
@@ -252,12 +265,14 @@ def eval_cmd() -> None:
     """Run referenceless LLM evaluation on generated outputs."""
     from rich.console import Console
     from rich.table import Table
+
     console = Console()
     console.print("🧪 [Evaluation Suite] Initialising...")
 
     try:
         config = load_config("config.yaml", validate_active=False)
         from stratasift.config import set_runtime_config
+
         set_runtime_config(config)
         vault_path = config.system.get_expanded_vault_path()
     except Exception as e:
@@ -265,6 +280,7 @@ def eval_cmd() -> None:
         sys.exit(1)
 
     from stratasift.eval.metrics import run_evaluation_suite
+
     results = run_evaluation_suite(vault_path, config)
 
     if not results:
@@ -282,21 +298,21 @@ def eval_cmd() -> None:
         f_score = f"{res['faithfulness']:.2f}"
         r_score = f"{res['relevance']:.2f}"
         rc_score = f"{res['recall']:.2f}"
-        
+
         # Color code based on threshold
         t = config.evaluation.threshold
-        f_color = "green" if res['faithfulness'] >= t else "red"
-        r_color = "green" if res['relevance'] >= t else "red"
-        rc_color = "green" if res['recall'] >= t else "red"
-        
+        f_color = "green" if res["faithfulness"] >= t else "red"
+        r_color = "green" if res["relevance"] >= t else "red"
+        rc_color = "green" if res["recall"] >= t else "red"
+
         table.add_row(
-            res['run_id'][:8],
-            res['source'][:30],
+            res["run_id"][:8],
+            res["source"][:30],
             f"[{f_color}]{f_score}[/{f_color}]",
             f"[{r_color}]{r_score}[/{r_color}]",
-            f"[{rc_color}]{rc_score}[/{rc_color}]"
+            f"[{rc_color}]{rc_score}[/{rc_color}]",
         )
-        
+
     console.print(table)
     console.print("\n🎉 Evaluation Complete.")
 

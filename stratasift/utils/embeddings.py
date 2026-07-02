@@ -36,9 +36,7 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
     Falls back to full cosine formula for non-normalised inputs.
     """
     if len(vec_a) != len(vec_b):
-        raise ValueError(
-            f"Vector dimension mismatch: {len(vec_a)} vs {len(vec_b)}"
-        )
+        raise ValueError(f"Vector dimension mismatch: {len(vec_a)} vs {len(vec_b)}")
 
     dot = sum(a * b for a, b in zip(vec_a, vec_b))
     norm_a = math.sqrt(sum(a * a for a in vec_a))
