@@ -265,7 +265,7 @@ class TestGraph(unittest.TestCase):
         final_state = graph_app.invoke(initial_state)
 
         # Verify dual-vector triage: methodology high, domain low
-        self.assertLess(final_state["domain_relevance"], 0.95) #0.75
+        self.assertLess(final_state["domain_relevance"], 0.95)  # 0.75
         self.assertGreaterEqual(final_state["methodology_relevance"], 0.75)
         self.assertEqual(final_state["match_type"], "methodology_only")
 
