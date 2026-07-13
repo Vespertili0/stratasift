@@ -32,21 +32,30 @@ def route_to_specialists(state: PaperIngestionState):
     """Dynamic Fan-Out router based on section chunks."""
     source_doc = state.get("source_doc")
     chunks = getattr(source_doc, "section_chunks", [])
-    
+
     # If no chunks (e.g. monolithic fallback), send a single worker with the full text
     if not chunks:
         # Construct fallback chunk logic here
-        chunks = [{"header": "Full Document", "content": getattr(source_doc, "abstract_intro", "")}]
-        
+        chunks = [
+            {
+                "header": "Full Document",
+                "content": getattr(source_doc, "abstract_intro", ""),
+            }
+        ]
+
     # Dynamically fan-out to parallel Specialist_Worker nodes
     return [
-        Send("Specialist_Worker", {
-            "chunk": chunk,
-            "reading_directive": state.get("reading_directive", ""),
-            "central_hypothesis": state.get("central_hypothesis", ""),
-            "match_type": state.get("match_type", ""),
-            "feedback": state.get("feedback"),
-        }) for chunk in chunks
+        Send(
+            "Specialist_Worker",
+            {
+                "chunk": chunk,
+                "reading_directive": state.get("reading_directive", ""),
+                "central_hypothesis": state.get("central_hypothesis", ""),
+                "match_type": state.get("match_type", ""),
+                "feedback": state.get("feedback"),
+            },
+        )
+        for chunk in chunks
     ]
 
 
@@ -98,9 +107,7 @@ workflow.add_conditional_edges(
 
 # Dynamic Fan-Out from Proxy
 workflow.add_conditional_edges(
-    "Router_Proxy", 
-    route_to_specialists, 
-    ["Specialist_Worker"]
+    "Router_Proxy", route_to_specialists, ["Specialist_Worker"]
 )
 
 # Fan-in: All workers automatically resolve and proceed to Reflection

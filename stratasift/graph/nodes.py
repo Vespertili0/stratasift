@@ -589,15 +589,13 @@ def specialist_worker_node(state: SpecialistWorkerState) -> Dict[str, Any]:
         )
 
     # Compose chunk context
-    chunk_context = f"## {chunk.get('header', 'Unknown Section')}\n{chunk.get('content', '')}"
+    chunk_context = (
+        f"## {chunk.get('header', 'Unknown Section')}\n{chunk.get('content', '')}"
+    )
 
     prompt = [
         SystemMessage(content=system_instruction),
-        HumanMessage(
-            content=(
-                f"Chunk Context:\n{chunk_context}"
-            )
-        ),
+        HumanMessage(content=(f"Chunk Context:\n{chunk_context}")),
     ]
 
     # Trace log
@@ -618,7 +616,9 @@ def specialist_worker_node(state: SpecialistWorkerState) -> Dict[str, Any]:
                     f"      ⚠️ Attempt {attempt} for synthesis of chunk '{chunk_title}' failed: {str(e)}"
                 )
                 if attempt == 2:
-                    log_event(f"      ❌ Chunk '{chunk_title}' failed completely after 2 attempts.")
+                    log_event(
+                        f"      ❌ Chunk '{chunk_title}' failed completely after 2 attempts."
+                    )
                     return {"raw_extractions": [], "atomic_insights": []}
 
     # Build raw_extractions for context DB and reflection cross-reference
@@ -629,8 +629,12 @@ def specialist_worker_node(state: SpecialistWorkerState) -> Dict[str, Any]:
             raw_extractions.append(
                 {
                     "specialist_type": "worker",
-                    "data_points": ins.data_points if hasattr(ins, "data_points") else {},
-                    "source_quotes": ins.source_quotes if hasattr(ins, "source_quotes") else [],
+                    "data_points": ins.data_points
+                    if hasattr(ins, "data_points")
+                    else {},
+                    "source_quotes": ins.source_quotes
+                    if hasattr(ins, "source_quotes")
+                    else [],
                     "title": ins.title,
                     "core_insight": ins.core_insight,
                 }
