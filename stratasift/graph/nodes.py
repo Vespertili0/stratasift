@@ -8,7 +8,7 @@ from stratasift.utils.ui import stream_supervisor_thought, log_event, AnalysisSp
 from pydantic import BaseModel, Field
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from stratasift.config import get_runtime_config
-from stratasift.graph.state import PaperIngestionState
+from stratasift.graph.state import PaperIngestionState, SpecialistWorkerState
 from stratasift.core.models import AtomicInsight
 from stratasift.utils.file_io import format_insight, generate_insight_id
 from stratasift.utils.embeddings import SimpleEmbeddingFunction, cosine_similarity
@@ -352,7 +352,42 @@ def _init_llms():
         specialist_llm = MockLLM("gemma4:31b-cloud")
 
 
+def invoke_with_fallback(model: Any, prompt: Any, schema: Type[BaseModel]) -> BaseModel:
+    """Invokes the structured model and handles markdown-wrapped JSON errors."""
+    try:
+        return model.invoke(prompt)
+    except Exception as e:
+        err_str = str(e)
+        if "Invalid json output:" in err_str:
+            import json
+            import re
+
+            try:
+                json_str = err_str.split("Invalid json output:", 1)[1].strip()
+                match = re.search(r"```(?:json)?\s*(.*?)\s*```", json_str, re.DOTALL)
+                if match:
+                    json_str = match.group(1).strip()
+
+                parsed_json = json.loads(json_str)
+                return schema(**parsed_json)
+            except Exception:
+                pass
+        raise e
+
+
 # --- LangGraph Nodes Implementation ---
+
+
+# Temporary adapter in nodes.py for EPIC-01
+def extract_interim_context(section_chunks: List[Dict[str, str]]) -> str:
+    return "\n\n".join(
+        f"## {chunk['header']}\n{chunk['content']}" for chunk in section_chunks
+    )
+
+
+def router_proxy_node(state: PaperIngestionState) -> Dict[str, Any]:
+    """Pass-through node acting as a proxy for the dynamic Map-Reduce router."""
+    return {}
 
 
 def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
@@ -368,7 +403,7 @@ def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
 
     source_doc = state["source_doc"]
     abstract = source_doc.abstract_intro
-    conclusions = source_doc.conclusions or ""
+    toc = source_doc.toc
 
     # Build structured profile from config
     domain_interests = config.system.domain_interests
@@ -383,21 +418,20 @@ def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
         "- reading_directive: A clear instruction for the specialist node detailing what to extract if max(domain_relevance, methodology_relevance) >= 0.75, otherwise empty"
     )
 
-    # Compose the human message with both abstract and conclusions
+    # Compose the human message with abstract and TOC
     human_content = (
         f"Domain Interests: {', '.join(domain_interests)}\n\n"
         f"Methodology Interests: {', '.join(methodology_interests)}\n\n"
+        f"Table of Contents (TOC): {json.dumps(toc)}\n\n"
         f"Abstract/Introduction:\n{abstract}"
     )
-    if conclusions:
-        human_content += f"\n\nConclusions:\n{conclusions}"
 
     prompt = [
         SystemMessage(content=system_instruction),
         HumanMessage(content=human_content),
     ]
 
-    result = model.invoke(prompt)
+    result = invoke_with_fallback(model, prompt, TriageDecision)
     threshold = config.blocks.supervisor_block.relevance_threshold or 0.75
 
     # Compute effective relevance as max of the two vectors
@@ -477,12 +511,11 @@ def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
     }
 
 
-def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
-    """Consolidated specialist node powered by a thinking model.
+def specialist_worker_node(state: SpecialistWorkerState) -> Dict[str, Any]:
+    """Specialist worker node powered by a thinking model.
 
-    Reads the entire paper context (methods + results + conclusions) in a single
-    LLM invocation and extracts multiple distinct atomic insights. Uses the
-    <|think|> token to activate the model's native reasoning pipeline.
+    Reads a specific document chunk in a single LLM invocation and extracts multiple
+    distinct atomic insights. Uses the <|think|> token to activate the model's native reasoning pipeline.
     """
     _init_llms()
     config = get_runtime_config()
@@ -490,17 +523,14 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
         AtomicInsightList, method="json_schema"
     )
 
-    source_doc = state["source_doc"]
-    methods_text = source_doc.methods or ""
-    results_text = source_doc.results_discussion or ""
-    conclusions_text = source_doc.conclusions or ""
+    chunk = state["chunk"]
     directive = state["reading_directive"]
     hypothesis = state.get("central_hypothesis", "")
     match_type = state.get("match_type", "full")
     feedback = state.get("feedback")
 
-    # Select the consolidated specialist prompt
-    system_instruction = config.prompts.specialist_consolidated
+    # Select the worker specialist prompt
+    system_instruction = config.prompts.specialist_worker
     system_instruction = system_instruction.format(
         directive=directive, hypothesis=hypothesis
     )
@@ -558,46 +588,38 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
             f"Correct your output based on this feedback: {feedback_text}"
         )
 
-    # Compose full paper context
-    paper_context_parts = []
-    if methods_text:
-        paper_context_parts.append(f"## Methods\n{methods_text}")
-    if results_text:
-        paper_context_parts.append(f"## Results and Discussion\n{results_text}")
-    if conclusions_text:
-        paper_context_parts.append(f"## Conclusions\n{conclusions_text}")
-    paper_context = "\n\n".join(paper_context_parts)
+    # Compose chunk context
+    chunk_context = (
+        f"## {chunk.get('header', 'Unknown Section')}\n{chunk.get('content', '')}"
+    )
 
     prompt = [
         SystemMessage(content=system_instruction),
-        HumanMessage(
-            content=(
-                f"Source Doc Title: {source_doc.title}\n\n"
-                f"Paper Context:\n{paper_context}"
-            )
-        ),
+        HumanMessage(content=(f"Chunk Context:\n{chunk_context}")),
     ]
 
     # Trace log
     action = "Re-analysing" if feedback_text else "Analysing"
+    chunk_title = chunk.get("header", "Unknown")
 
     spec_insights = None
-    with AnalysisSpinner(f"{action} full paper ({match_type} mode)..."):
+    with AnalysisSpinner(f"{action} chunk: '{chunk_title}' ({match_type} mode)..."):
         for attempt in range(1, 3):
             try:
-                spec_insights = model.invoke(prompt)
+                spec_insights = invoke_with_fallback(model, prompt, AtomicInsightList)
                 if spec_insights and spec_insights.insights:
                     break
                 else:
                     raise ValueError("No insights returned by the model.")
             except Exception as e:
                 log_event(
-                    f"      ⚠️ Attempt {attempt} for consolidated synthesis failed: {str(e)}"
+                    f"      ⚠️ Attempt {attempt} for synthesis of chunk '{chunk_title}' failed: {str(e)}"
                 )
                 if attempt == 2:
-                    raise ValueError(
-                        f"LLM failed to satisfy AtomicInsightList constraints after 2 attempts. Error: {str(e)}"
+                    log_event(
+                        f"      ❌ Chunk '{chunk_title}' failed completely after 2 attempts."
                     )
+                    return {"raw_extractions": [], "atomic_insights": []}
 
     # Build raw_extractions for context DB and reflection cross-reference
     raw_extractions = []
@@ -606,9 +628,13 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
         for ins in spec_insights.insights:
             raw_extractions.append(
                 {
-                    "specialist_type": "consolidated",
-                    "data_points": {},
-                    "source_quotes": [],
+                    "specialist_type": "worker",
+                    "data_points": ins.data_points
+                    if hasattr(ins, "data_points")
+                    else {},
+                    "source_quotes": ins.source_quotes
+                    if hasattr(ins, "source_quotes")
+                    else [],
                     "title": ins.title,
                     "core_insight": ins.core_insight,
                 }
@@ -707,9 +733,6 @@ def reflection_review_node(state: PaperIngestionState) -> Dict[str, Any]:
     )
 
     source_doc = state["source_doc"]
-    methods_text = source_doc.methods or ""
-    results_text = source_doc.results_discussion or ""
-    conclusions_text = source_doc.conclusions or ""
     atomic_insights = state.get("atomic_insights", [])
     retry_count = state["retry_count"]
 
@@ -738,20 +761,19 @@ def reflection_review_node(state: PaperIngestionState) -> Dict[str, Any]:
         indent=2,
     )
 
+    interim_context = extract_interim_context(source_doc.section_chunks)
     prompt = [
         SystemMessage(content=system_instruction),
         HumanMessage(
             content=(
-                f"Original Methods Text:\n{methods_text}\n\n"
-                f"Original Results Text:\n{results_text}\n\n"
-                f"Original Conclusions Text:\n{conclusions_text}\n\n"
+                f"Original Paper Context:\n{interim_context}\n\n"
                 f"Proposed Atomic Insights:\n{insights_text}\n\n"
                 f"Retry Count: {retry_count}"
             )
         ),
     ]
 
-    result = model.invoke(prompt)
+    result = invoke_with_fallback(model, prompt, ReflectionDecision)
     max_loops = (
         config.blocks.analysis_block.max_debate_loops
         if config.blocks.analysis_block.max_debate_loops is not None

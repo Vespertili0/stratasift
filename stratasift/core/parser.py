@@ -1,86 +1,129 @@
 import re
 from pathlib import Path
-from typing import Tuple, Set, Optional
+from typing import Tuple, Optional, List, Dict
 import frontmatter
 
 from stratasift.core.models import SanitisedLiterature
 from stratasift.core.sanitiser import sanitise_line
 
-# Heuristic mapping targets for section segmentation
-ABSTRACT_REGEX = r"(?i)^##?\s+(Abstract|Summary|Synopsis|Executive Summary)"
-INTRO_REGEX = r"(?i)^##?\s+(Introduction|Background|1\.\s+Introduction)"
-METHODS_REGEX = (
-    r"(?i)^##?\s+(Methods|Methodology|Experimental\s+Section|Materials\s+and\s+Methods)"
-)
-RESULTS_REGEX = r"(?i)^##?\s+(Results|Discussion|Results\s+and\s+Discussion)"
-CONCLUSION_REGEX = r"(?i)^##?\s+(Conclusions?|Outlook|Summary\s+and\s+Outlook|Concluding\s+Remarks|Perspectives)"
+MIN_WORD_COUNT = 300
 
 
 def _segment_markdown_content(
     content: str,
-) -> Tuple[str, Optional[str], Optional[str], Optional[str], int, int]:
-    """Segment markdown content into sections and sanitise them."""
+) -> Tuple[str, List[str], List[Dict[str, str]], int, int]:
+    """Segment markdown content into dynamic sections and sanitise them."""
     abstract_intro_lines = []
-    methods_lines = []
-    results_discussion_lines = []
-    conclusions_lines = []
 
-    current_state: Optional[str] = None
-    matched_sections: Set[str] = set()
+    # Store tuples of (header, lines_list)
+    raw_sections: List[Tuple[str, List[str]]] = []
+
+    current_header: Optional[str] = None
+    current_lines: List[str] = []
 
     total_links = 0
     total_images = 0
 
     for line in content.splitlines():
-        # Match headings
-        if re.match(CONCLUSION_REGEX, line):
-            current_state = "conclusions"
-            matched_sections.add("conclusions")
-            continue
-        elif re.match(ABSTRACT_REGEX, line) or re.match(INTRO_REGEX, line):
-            current_state = "abstract_intro"
-            matched_sections.add("abstract_intro")
-            continue
-        elif re.match(METHODS_REGEX, line):
-            current_state = "methods"
-            matched_sections.add("methods")
-            continue
-        elif re.match(RESULTS_REGEX, line):
-            current_state = "results_discussion"
-            matched_sections.add("results_discussion")
-            continue
+        # Identify heading (H1 and H2), avoid matching markdown table markers or frontmatter markers if any bleed through
+        match = re.match(r"^(##?)\s+(.+)$", line)
+        if match:
+            # We found a new heading
+            new_header = match.group(2).strip()
 
-        if current_state:
+            # Save previous section if exists
+            if current_header is not None:
+                raw_sections.append((current_header, current_lines))
+            elif current_lines and not abstract_intro_lines:
+                # If we had content before any header, it's the abstract/intro
+                abstract_intro_lines.extend(current_lines)
+            elif current_lines:
+                # If somehow abstract_intro is already set, just append
+                abstract_intro_lines.extend(current_lines)
+
+            current_header = new_header
+            current_lines = []
+        else:
             # Sanitise the line (preserves tables, strips images and reference links)
             s_line, lnk_count, img_count = sanitise_line(line)
             total_links += lnk_count
             total_images += img_count
 
-            if current_state == "abstract_intro":
+            if current_header is not None:
+                current_lines.append(s_line)
+            else:
                 abstract_intro_lines.append(s_line)
-            elif current_state == "methods":
-                methods_lines.append(s_line)
-            elif current_state == "results_discussion":
-                results_discussion_lines.append(s_line)
-            elif current_state == "conclusions":
-                conclusions_lines.append(s_line)
 
-    # 3. Baseline validation
-    if not matched_sections:
-        raise ValueError("Failed to identify core document structural layout sections.")
+    # Add the last section
+    if current_header is not None:
+        raw_sections.append((current_header, current_lines))
+    elif current_lines:
+        abstract_intro_lines.extend(current_lines)
 
     abstract_intro_text = "\n".join(abstract_intro_lines).strip()
-    methods_text = "\n".join(methods_lines).strip() if methods_lines else None
-    results_discussion_text = (
-        "\n".join(results_discussion_lines).strip()
-        if results_discussion_lines
-        else None
-    )
-    conclusions_text = (
-        "\n".join(conclusions_lines).strip() if conclusions_lines else None
-    )
 
-    # Check that abstract_intro is populated since it is a required field
+    if not abstract_intro_text and raw_sections:
+        # Fallback: if there was no leading text before the first header,
+        # take the first section that has content as abstract/intro
+        for header, lines in raw_sections:
+            text = "\n".join(lines).strip()
+            if text:
+                abstract_intro_text = text
+                break
+
+    # Build TOC and chunk sections
+    toc = []
+    section_chunks = []
+
+    if raw_sections:
+        # Pre-process into header and text string
+        processed_sections = []
+        for header, lines in raw_sections:
+            toc.append(header)
+            text = "\n".join(lines).strip()
+            processed_sections.append({"header": header, "content": text})
+
+        # Threshold-based Section Concatenator
+        for current in processed_sections:
+            if not section_chunks:
+                section_chunks.append(current)
+                continue
+
+            # Check previous chunk word count
+            prev = section_chunks[-1]
+            prev_word_count = len(prev["content"].split())
+
+            if prev_word_count < MIN_WORD_COUNT:
+                # Merge current into previous (forward merge from perspective of prev)
+                merged_header = f"{prev['header']} / {current['header']}"
+                merged_content = (
+                    f"{prev['content']}\n\n## {current['header']}\n{current['content']}"
+                )
+                section_chunks[-1] = {
+                    "header": merged_header,
+                    "content": merged_content,
+                }
+            else:
+                section_chunks.append(current)
+
+        # Tail check for boundary safeguard
+        if len(section_chunks) > 1:
+            last = section_chunks[-1]
+            if len(last["content"].split()) < MIN_WORD_COUNT:
+                last = section_chunks.pop()
+                prev = section_chunks[-1]
+                merged_header = f"{prev['header']} / {last['header']}"
+                merged_content = (
+                    f"{prev['content']}\n\n## {last['header']}\n{last['content']}"
+                )
+                section_chunks[-1] = {
+                    "header": merged_header,
+                    "content": merged_content,
+                }
+
+    if not toc:
+        raise ValueError("Failed to identify core document structural layout sections.")
+
     if not abstract_intro_text:
         raise ValueError(
             "Failed to identify core document structural layout sections (Abstract/Introduction segment is empty)."
@@ -88,23 +131,22 @@ def _segment_markdown_content(
 
     return (
         abstract_intro_text,
-        methods_text,
-        results_discussion_text,
-        conclusions_text,
+        toc,
+        section_chunks,
         total_links,
         total_images,
     )
 
 
 def parse_markdown_file(file_path: Path) -> Tuple[SanitisedLiterature, int, int]:
-    """Parse a markdown file using regex heuristic matching and sanitise its content.
+    """Parse a markdown file using dynamic heading matching and sanitise its content.
 
     Returns:
         A tuple of (SanitisedLiterature, total_links_sanitised, total_images_stripped).
 
     Raises:
         ValueError: If the file is malformed, lacks a discoverable title, or
-                    fails to match any section heuristics.
+                    fails to match any sections.
     """
     if not file_path.is_file():
         raise ValueError(f"File not found: {file_path}")
@@ -132,12 +174,11 @@ def parse_markdown_file(file_path: Path) -> Tuple[SanitisedLiterature, int, int]
             "Missing a discoverable title (no title in frontmatter and no H1 header)."
         )
 
-    # 2. Section parsing line-by-line using heuristics
+    # 2. Section parsing line-by-line
     (
         abstract_intro_text,
-        methods_text,
-        results_discussion_text,
-        conclusions_text,
+        toc,
+        section_chunks,
         total_links,
         total_images,
     ) = _segment_markdown_content(content)
@@ -148,9 +189,8 @@ def parse_markdown_file(file_path: Path) -> Tuple[SanitisedLiterature, int, int]
             title=title,
             metadata=metadata,
             abstract_intro=abstract_intro_text,
-            methods=methods_text,
-            results_discussion=results_discussion_text,
-            conclusions=conclusions_text,
+            toc=toc,
+            section_chunks=section_chunks,
         )
     except Exception as e:
         raise ValueError(f"Data model validation failed: {str(e)}")

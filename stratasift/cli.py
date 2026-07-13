@@ -132,12 +132,10 @@ def ingest(directory_path: Path) -> None:
             )
 
             mapped_states = ["Abstract"]
-            if sanitised_lit.methods:
-                mapped_states.append("Methods")
-            if sanitised_lit.results_discussion:
-                mapped_states.append("Results")
-            if sanitised_lit.conclusions:
-                mapped_states.append("Conclusions")
+            for chunk in getattr(sanitised_lit, "section_chunks", []):
+                header = chunk.get("header")
+                if header:
+                    mapped_states.append(header)
 
             click.echo(
                 f"   ✅ Structural segmentation complete (Mapped: {', '.join(mapped_states)})."
