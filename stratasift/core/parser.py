@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Tuple, Set, Optional, List, Dict
+from typing import Tuple, Optional, List, Dict
 import frontmatter
 
 from stratasift.core.models import SanitisedLiterature
@@ -8,15 +8,16 @@ from stratasift.core.sanitiser import sanitise_line
 
 MIN_WORD_COUNT = 300
 
+
 def _segment_markdown_content(
     content: str,
 ) -> Tuple[str, List[str], List[Dict[str, str]], int, int]:
     """Segment markdown content into dynamic sections and sanitise them."""
     abstract_intro_lines = []
-    
+
     # Store tuples of (header, lines_list)
     raw_sections: List[Tuple[str, List[str]]] = []
-    
+
     current_header: Optional[str] = None
     current_lines: List[str] = []
 
@@ -29,7 +30,7 @@ def _segment_markdown_content(
         if match:
             # We found a new heading
             new_header = match.group(2).strip()
-            
+
             # Save previous section if exists
             if current_header is not None:
                 raw_sections.append((current_header, current_lines))
@@ -39,7 +40,7 @@ def _segment_markdown_content(
             elif current_lines:
                 # If somehow abstract_intro is already set, just append
                 abstract_intro_lines.extend(current_lines)
-                
+
             current_header = new_header
             current_lines = []
         else:
@@ -47,33 +48,33 @@ def _segment_markdown_content(
             s_line, lnk_count, img_count = sanitise_line(line)
             total_links += lnk_count
             total_images += img_count
-            
+
             if current_header is not None:
                 current_lines.append(s_line)
             else:
                 abstract_intro_lines.append(s_line)
-                
+
     # Add the last section
     if current_header is not None:
         raw_sections.append((current_header, current_lines))
     elif current_lines:
         abstract_intro_lines.extend(current_lines)
-        
+
     abstract_intro_text = "\n".join(abstract_intro_lines).strip()
-    
+
     if not abstract_intro_text and raw_sections:
-        # Fallback: if there was no leading text before the first header, 
+        # Fallback: if there was no leading text before the first header,
         # take the first section that has content as abstract/intro
         for header, lines in raw_sections:
             text = "\n".join(lines).strip()
             if text:
                 abstract_intro_text = text
                 break
-        
+
     # Build TOC and chunk sections
     toc = []
     section_chunks = []
-    
+
     if raw_sections:
         # Pre-process into header and text string
         processed_sections = []
@@ -81,25 +82,30 @@ def _segment_markdown_content(
             toc.append(header)
             text = "\n".join(lines).strip()
             processed_sections.append({"header": header, "content": text})
-            
+
         # Threshold-based Section Concatenator
         for current in processed_sections:
             if not section_chunks:
                 section_chunks.append(current)
                 continue
-            
+
             # Check previous chunk word count
             prev = section_chunks[-1]
             prev_word_count = len(prev["content"].split())
-            
+
             if prev_word_count < MIN_WORD_COUNT:
                 # Merge current into previous (forward merge from perspective of prev)
                 merged_header = f"{prev['header']} / {current['header']}"
-                merged_content = f"{prev['content']}\n\n## {current['header']}\n{current['content']}"
-                section_chunks[-1] = {"header": merged_header, "content": merged_content}
+                merged_content = (
+                    f"{prev['content']}\n\n## {current['header']}\n{current['content']}"
+                )
+                section_chunks[-1] = {
+                    "header": merged_header,
+                    "content": merged_content,
+                }
             else:
                 section_chunks.append(current)
-                
+
         # Tail check for boundary safeguard
         if len(section_chunks) > 1:
             last = section_chunks[-1]
@@ -107,12 +113,17 @@ def _segment_markdown_content(
                 last = section_chunks.pop()
                 prev = section_chunks[-1]
                 merged_header = f"{prev['header']} / {last['header']}"
-                merged_content = f"{prev['content']}\n\n## {last['header']}\n{last['content']}"
-                section_chunks[-1] = {"header": merged_header, "content": merged_content}
-                
+                merged_content = (
+                    f"{prev['content']}\n\n## {last['header']}\n{last['content']}"
+                )
+                section_chunks[-1] = {
+                    "header": merged_header,
+                    "content": merged_content,
+                }
+
     if not toc:
         raise ValueError("Failed to identify core document structural layout sections.")
-                
+
     if not abstract_intro_text:
         raise ValueError(
             "Failed to identify core document structural layout sections (Abstract/Introduction segment is empty)."

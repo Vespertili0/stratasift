@@ -361,12 +361,13 @@ def invoke_with_fallback(model: Any, prompt: Any, schema: Type[BaseModel]) -> Ba
         if "Invalid json output:" in err_str:
             import json
             import re
+
             try:
                 json_str = err_str.split("Invalid json output:", 1)[1].strip()
                 match = re.search(r"```(?:json)?\s*(.*?)\s*```", json_str, re.DOTALL)
                 if match:
                     json_str = match.group(1).strip()
-                
+
                 parsed_json = json.loads(json_str)
                 return schema(**parsed_json)
             except Exception:
@@ -376,9 +377,12 @@ def invoke_with_fallback(model: Any, prompt: Any, schema: Type[BaseModel]) -> Ba
 
 # --- LangGraph Nodes Implementation ---
 
+
 # Temporary adapter in nodes.py for EPIC-01
 def extract_interim_context(section_chunks: List[Dict[str, str]]) -> str:
-    return "\n\n".join(f"## {chunk['header']}\n{chunk['content']}" for chunk in section_chunks)
+    return "\n\n".join(
+        f"## {chunk['header']}\n{chunk['content']}" for chunk in section_chunks
+    )
 
 
 def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:

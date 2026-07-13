@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 
 class SanitisedLiterature(BaseModel):
@@ -16,11 +16,11 @@ class SanitisedLiterature(BaseModel):
     )
     toc: List[str] = Field(
         default_factory=list,
-        description="Dynamic Table of Contents mapping `#` and `##` structural headings."
+        description="Dynamic Table of Contents mapping `#` and `##` structural headings.",
     )
     section_chunks: List[Dict[str, str]] = Field(
         default_factory=list,
-        description="List of logical content blocks, e.g., [{'header': 'Methods / Protocols', 'content': '...'}]"
+        description="List of logical content blocks, e.g., [{'header': 'Methods / Protocols', 'content': '...'}]",
     )
 
 

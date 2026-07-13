@@ -140,7 +140,10 @@ class TestParser(unittest.TestCase):
             lit, links, images = parse_markdown_file(temp_path)
             self.assertIn("Conclusion", lit.toc)
             self.assertEqual(len(lit.section_chunks), 1)
-            self.assertIn("results demonstrate significant advances", lit.section_chunks[0]["content"])
+            self.assertIn(
+                "results demonstrate significant advances",
+                lit.section_chunks[0]["content"],
+            )
         finally:
             if temp_path.exists():
                 temp_path.unlink()
