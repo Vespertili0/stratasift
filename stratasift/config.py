@@ -12,10 +12,11 @@ load_dotenv()
 class PromptsConfig(BaseModel):
     triage: str = (
         "You are the Principal Investigator (Supervisor Agent). "
-        "Evaluate the abstract/introduction and conclusions of the ingested paper against the user's domain interests and methodology interests. "
+        "Evaluate the abstract/introduction and the Table of Contents (TOC) of the ingested paper against the user's domain interests and methodology interests. "
         "Output two relevance scores: domain_relevance (0.0 to 1.0) and methodology_relevance (0.0 to 1.0). "
         "Formulate a central_hypothesis representing the paper's core scientific contribution. "
         "If max(domain_relevance, methodology_relevance) >= 0.75, generate a reading_directive. "
+        "Review the TOC and explicitly call out deep-cut sections (e.g., 'Transferability', 'Computational Setup') in your reading_directive if relevant. "
         "Otherwise, leave reading_directive empty."
     )
     specialist_consolidated: str = (

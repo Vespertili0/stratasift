@@ -352,7 +352,33 @@ def _init_llms():
         specialist_llm = MockLLM("gemma4:31b-cloud")
 
 
+def invoke_with_fallback(model: Any, prompt: Any, schema: Type[BaseModel]) -> BaseModel:
+    """Invokes the structured model and handles markdown-wrapped JSON errors."""
+    try:
+        return model.invoke(prompt)
+    except Exception as e:
+        err_str = str(e)
+        if "Invalid json output:" in err_str:
+            import json
+            import re
+            try:
+                json_str = err_str.split("Invalid json output:", 1)[1].strip()
+                match = re.search(r"```(?:json)?\s*(.*?)\s*```", json_str, re.DOTALL)
+                if match:
+                    json_str = match.group(1).strip()
+                
+                parsed_json = json.loads(json_str)
+                return schema(**parsed_json)
+            except Exception:
+                pass
+        raise e
+
+
 # --- LangGraph Nodes Implementation ---
+
+# Temporary adapter in nodes.py for EPIC-01
+def extract_interim_context(section_chunks: List[Dict[str, str]]) -> str:
+    return "\n\n".join(f"## {chunk['header']}\n{chunk['content']}" for chunk in section_chunks)
 
 
 def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
@@ -368,7 +394,7 @@ def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
 
     source_doc = state["source_doc"]
     abstract = source_doc.abstract_intro
-    conclusions = source_doc.conclusions or ""
+    toc = source_doc.toc
 
     # Build structured profile from config
     domain_interests = config.system.domain_interests
@@ -383,21 +409,20 @@ def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
         "- reading_directive: A clear instruction for the specialist node detailing what to extract if max(domain_relevance, methodology_relevance) >= 0.75, otherwise empty"
     )
 
-    # Compose the human message with both abstract and conclusions
+    # Compose the human message with abstract and TOC
     human_content = (
         f"Domain Interests: {', '.join(domain_interests)}\n\n"
         f"Methodology Interests: {', '.join(methodology_interests)}\n\n"
+        f"Table of Contents (TOC): {json.dumps(toc)}\n\n"
         f"Abstract/Introduction:\n{abstract}"
     )
-    if conclusions:
-        human_content += f"\n\nConclusions:\n{conclusions}"
 
     prompt = [
         SystemMessage(content=system_instruction),
         HumanMessage(content=human_content),
     ]
 
-    result = model.invoke(prompt)
+    result = invoke_with_fallback(model, prompt, TriageDecision)
     threshold = config.blocks.supervisor_block.relevance_threshold or 0.75
 
     # Compute effective relevance as max of the two vectors
@@ -491,9 +516,6 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
     )
 
     source_doc = state["source_doc"]
-    methods_text = source_doc.methods or ""
-    results_text = source_doc.results_discussion or ""
-    conclusions_text = source_doc.conclusions or ""
     directive = state["reading_directive"]
     hypothesis = state.get("central_hypothesis", "")
     match_type = state.get("match_type", "full")
@@ -559,14 +581,7 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
         )
 
     # Compose full paper context
-    paper_context_parts = []
-    if methods_text:
-        paper_context_parts.append(f"## Methods\n{methods_text}")
-    if results_text:
-        paper_context_parts.append(f"## Results and Discussion\n{results_text}")
-    if conclusions_text:
-        paper_context_parts.append(f"## Conclusions\n{conclusions_text}")
-    paper_context = "\n\n".join(paper_context_parts)
+    paper_context = extract_interim_context(source_doc.section_chunks)
 
     prompt = [
         SystemMessage(content=system_instruction),
@@ -585,7 +600,7 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
     with AnalysisSpinner(f"{action} full paper ({match_type} mode)..."):
         for attempt in range(1, 3):
             try:
-                spec_insights = model.invoke(prompt)
+                spec_insights = invoke_with_fallback(model, prompt, AtomicInsightList)
                 if spec_insights and spec_insights.insights:
                     break
                 else:
@@ -707,9 +722,6 @@ def reflection_review_node(state: PaperIngestionState) -> Dict[str, Any]:
     )
 
     source_doc = state["source_doc"]
-    methods_text = source_doc.methods or ""
-    results_text = source_doc.results_discussion or ""
-    conclusions_text = source_doc.conclusions or ""
     atomic_insights = state.get("atomic_insights", [])
     retry_count = state["retry_count"]
 
@@ -738,20 +750,19 @@ def reflection_review_node(state: PaperIngestionState) -> Dict[str, Any]:
         indent=2,
     )
 
+    interim_context = extract_interim_context(source_doc.section_chunks)
     prompt = [
         SystemMessage(content=system_instruction),
         HumanMessage(
             content=(
-                f"Original Methods Text:\n{methods_text}\n\n"
-                f"Original Results Text:\n{results_text}\n\n"
-                f"Original Conclusions Text:\n{conclusions_text}\n\n"
+                f"Original Paper Context:\n{interim_context}\n\n"
                 f"Proposed Atomic Insights:\n{insights_text}\n\n"
                 f"Retry Count: {retry_count}"
             )
         ),
     ]
 
-    result = model.invoke(prompt)
+    result = invoke_with_fallback(model, prompt, ReflectionDecision)
     max_loops = (
         config.blocks.analysis_block.max_debate_loops
         if config.blocks.analysis_block.max_debate_loops is not None

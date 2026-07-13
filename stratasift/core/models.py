@@ -1,9 +1,9 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 class SanitisedLiterature(BaseModel):
-    """Pydantic model representing sanitised scientific literature text sections."""
+    """Pydantic model representing dynamic, heading-aware scientific literature."""
 
     title: str = Field(
         description="The primary title extracted from frontmatter or the top H1 tag."
@@ -12,18 +12,15 @@ class SanitisedLiterature(BaseModel):
         default_factory=dict, description="Extracted frontmatter data keys."
     )
     abstract_intro: str = Field(
-        description="The aggregated abstract, summary, or introduction text segment."
+        description="The extracted abstract, summary, or top-level introduction section."
     )
-    methods: Optional[str] = Field(
-        None,
-        description="The isolated chemical processing or synthesis methodology section.",
+    toc: List[str] = Field(
+        default_factory=list,
+        description="Dynamic Table of Contents mapping `#` and `##` structural headings."
     )
-    results_discussion: Optional[str] = Field(
-        None, description="The recorded data results, tables, and narrative metrics."
-    )
-    conclusions: Optional[str] = Field(
-        None,
-        description="The conclusion, outlook, or summary and outlook section.",
+    section_chunks: List[Dict[str, str]] = Field(
+        default_factory=list,
+        description="List of logical content blocks, e.g., [{'header': 'Methods / Protocols', 'content': '...'}]"
     )
 
 

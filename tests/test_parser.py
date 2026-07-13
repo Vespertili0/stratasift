@@ -39,8 +39,10 @@ class TestParser(unittest.TestCase):
             self.assertEqual(lit.title, "Solid-State Synthesis of LLZO")
             self.assertEqual(lit.metadata.get("author"), "Research Group")
             self.assertIn("solid-state synthesis", lit.abstract_intro)
-            self.assertIn("Sintering was performed", lit.methods)
-            self.assertIn("The final compound", lit.results_discussion)
+            self.assertEqual(lit.toc, ["Abstract", "Methods", "Results and Discussion"])
+            self.assertEqual(len(lit.section_chunks), 1)
+            self.assertIn("Sintering was performed", lit.section_chunks[0]["content"])
+            self.assertIn("The final compound", lit.section_chunks[0]["content"])
             self.assertEqual(links, 1)
             self.assertEqual(images, 1)
         finally:
@@ -136,8 +138,9 @@ class TestParser(unittest.TestCase):
 
         try:
             lit, links, images = parse_markdown_file(temp_path)
-            self.assertIsNotNone(lit.conclusions)
-            self.assertIn("results demonstrate significant advances", lit.conclusions)
+            self.assertIn("Conclusion", lit.toc)
+            self.assertEqual(len(lit.section_chunks), 1)
+            self.assertIn("results demonstrate significant advances", lit.section_chunks[0]["content"])
         finally:
             if temp_path.exists():
                 temp_path.unlink()
@@ -164,8 +167,9 @@ class TestParser(unittest.TestCase):
 
         try:
             lit, links, images = parse_markdown_file(temp_path)
-            self.assertIsNotNone(lit.conclusions)
-            self.assertIn("broader applications", lit.conclusions)
+            self.assertIn("Summary and Outlook", lit.toc)
+            self.assertEqual(len(lit.section_chunks), 1)
+            self.assertIn("broader applications", lit.section_chunks[0]["content"])
         finally:
             if temp_path.exists():
                 temp_path.unlink()
@@ -197,8 +201,9 @@ class TestParser(unittest.TestCase):
             lit, links, images = parse_markdown_file(temp_path)
             self.assertIn("abstract content only", lit.abstract_intro)
             self.assertNotIn("conclusions go here", lit.abstract_intro)
-            self.assertIsNotNone(lit.conclusions)
-            self.assertIn("conclusions go here", lit.conclusions)
+            self.assertIn("Conclusions", lit.toc)
+            self.assertEqual(len(lit.section_chunks), 1)
+            self.assertIn("conclusions go here", lit.section_chunks[0]["content"])
         finally:
             if temp_path.exists():
                 temp_path.unlink()
