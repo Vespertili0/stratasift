@@ -31,7 +31,7 @@ jobs:
 
       - name: Run pre-commit auto-fixes
         run: |
-          uv run pre-commit run --all-files || true
+          uv run --with pre-commit pre-commit run --all-files || true
 
       - name: Commit and push pre-commit auto-fixes
         run: |
