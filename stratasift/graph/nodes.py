@@ -8,7 +8,7 @@ from stratasift.utils.ui import stream_supervisor_thought, log_event, AnalysisSp
 from pydantic import BaseModel, Field
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from stratasift.config import get_runtime_config
-from stratasift.graph.state import PaperIngestionState
+from stratasift.graph.state import PaperIngestionState, SpecialistWorkerState
 from stratasift.core.models import AtomicInsight
 from stratasift.utils.file_io import format_insight, generate_insight_id
 from stratasift.utils.embeddings import SimpleEmbeddingFunction, cosine_similarity
@@ -385,6 +385,11 @@ def extract_interim_context(section_chunks: List[Dict[str, str]]) -> str:
     )
 
 
+def router_proxy_node(state: PaperIngestionState) -> Dict[str, Any]:
+    """Pass-through node acting as a proxy for the dynamic Map-Reduce router."""
+    return {}
+
+
 def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
     """Triage node performing dual-vector relevance scoring.
 
@@ -506,12 +511,11 @@ def supervisor_triage_node(state: PaperIngestionState) -> Dict[str, Any]:
     }
 
 
-def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
-    """Consolidated specialist node powered by a thinking model.
+def specialist_worker_node(state: SpecialistWorkerState) -> Dict[str, Any]:
+    """Specialist worker node powered by a thinking model.
 
-    Reads the entire paper context (methods + results + conclusions) in a single
-    LLM invocation and extracts multiple distinct atomic insights. Uses the
-    <|think|> token to activate the model's native reasoning pipeline.
+    Reads a specific document chunk in a single LLM invocation and extracts multiple
+    distinct atomic insights. Uses the <|think|> token to activate the model's native reasoning pipeline.
     """
     _init_llms()
     config = get_runtime_config()
@@ -519,14 +523,14 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
         AtomicInsightList, method="json_schema"
     )
 
-    source_doc = state["source_doc"]
+    chunk = state["chunk"]
     directive = state["reading_directive"]
     hypothesis = state.get("central_hypothesis", "")
     match_type = state.get("match_type", "full")
     feedback = state.get("feedback")
 
-    # Select the consolidated specialist prompt
-    system_instruction = config.prompts.specialist_consolidated
+    # Select the worker specialist prompt
+    system_instruction = config.prompts.specialist_worker
     system_instruction = system_instruction.format(
         directive=directive, hypothesis=hypothesis
     )
@@ -584,24 +588,24 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
             f"Correct your output based on this feedback: {feedback_text}"
         )
 
-    # Compose full paper context
-    paper_context = extract_interim_context(source_doc.section_chunks)
+    # Compose chunk context
+    chunk_context = f"## {chunk.get('header', 'Unknown Section')}\n{chunk.get('content', '')}"
 
     prompt = [
         SystemMessage(content=system_instruction),
         HumanMessage(
             content=(
-                f"Source Doc Title: {source_doc.title}\n\n"
-                f"Paper Context:\n{paper_context}"
+                f"Chunk Context:\n{chunk_context}"
             )
         ),
     ]
 
     # Trace log
     action = "Re-analysing" if feedback_text else "Analysing"
+    chunk_title = chunk.get("header", "Unknown")
 
     spec_insights = None
-    with AnalysisSpinner(f"{action} full paper ({match_type} mode)..."):
+    with AnalysisSpinner(f"{action} chunk: '{chunk_title}' ({match_type} mode)..."):
         for attempt in range(1, 3):
             try:
                 spec_insights = invoke_with_fallback(model, prompt, AtomicInsightList)
@@ -611,12 +615,11 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
                     raise ValueError("No insights returned by the model.")
             except Exception as e:
                 log_event(
-                    f"      ⚠️ Attempt {attempt} for consolidated synthesis failed: {str(e)}"
+                    f"      ⚠️ Attempt {attempt} for synthesis of chunk '{chunk_title}' failed: {str(e)}"
                 )
                 if attempt == 2:
-                    raise ValueError(
-                        f"LLM failed to satisfy AtomicInsightList constraints after 2 attempts. Error: {str(e)}"
-                    )
+                    log_event(f"      ❌ Chunk '{chunk_title}' failed completely after 2 attempts.")
+                    return {"raw_extractions": [], "atomic_insights": []}
 
     # Build raw_extractions for context DB and reflection cross-reference
     raw_extractions = []
@@ -625,9 +628,9 @@ def consolidated_specialist_node(state: PaperIngestionState) -> Dict[str, Any]:
         for ins in spec_insights.insights:
             raw_extractions.append(
                 {
-                    "specialist_type": "consolidated",
-                    "data_points": {},
-                    "source_quotes": [],
+                    "specialist_type": "worker",
+                    "data_points": ins.data_points if hasattr(ins, "data_points") else {},
+                    "source_quotes": ins.source_quotes if hasattr(ins, "source_quotes") else [],
                     "title": ins.title,
                     "core_insight": ins.core_insight,
                 }

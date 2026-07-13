@@ -336,7 +336,8 @@ class TestGraph(unittest.TestCase):
             "central_hypothesis": "Test hypothesis",
         }
 
-        result = supervisor_network_node(state)
+        with patch("stratasift.graph.nodes.cosine_similarity", return_value=0.99):
+            result = supervisor_network_node(state)
 
         # With dedup, only one unique insight should produce a routing result
         # (the second near-identical one should be merged)

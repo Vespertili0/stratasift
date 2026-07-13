@@ -1,19 +1,21 @@
 from langgraph.graph import StateGraph, START, END
+from langgraph.types import Send
 from stratasift.graph.state import PaperIngestionState
 from stratasift.graph.nodes import (
     supervisor_triage_node,
-    consolidated_specialist_node,
+    router_proxy_node,
+    specialist_worker_node,
     reflection_review_node,
     supervisor_network_node,
 )
 
 
-def continue_to_specialist(state: PaperIngestionState):
+def continue_after_triage(state: PaperIngestionState):
     """Conditional router after supervisor triage.
 
     If the paper is irrelevant (effective relevance score < threshold),
     routes directly to Supervisor_Network. Otherwise, routes to the
-    consolidated specialist node.
+    Router_Proxy for Fan-Out.
     """
     from stratasift.config import get_runtime_config
 
@@ -23,14 +25,36 @@ def continue_to_specialist(state: PaperIngestionState):
     if state.get("relevance_score", 0.0) < threshold:
         return "Supervisor_Network"
 
-    return "Consolidated_Specialist"
+    return "Router_Proxy"
+
+
+def route_to_specialists(state: PaperIngestionState):
+    """Dynamic Fan-Out router based on section chunks."""
+    source_doc = state.get("source_doc")
+    chunks = getattr(source_doc, "section_chunks", [])
+    
+    # If no chunks (e.g. monolithic fallback), send a single worker with the full text
+    if not chunks:
+        # Construct fallback chunk logic here
+        chunks = [{"header": "Full Document", "content": getattr(source_doc, "abstract_intro", "")}]
+        
+    # Dynamically fan-out to parallel Specialist_Worker nodes
+    return [
+        Send("Specialist_Worker", {
+            "chunk": chunk,
+            "reading_directive": state.get("reading_directive", ""),
+            "central_hypothesis": state.get("central_hypothesis", ""),
+            "match_type": state.get("match_type", ""),
+            "feedback": state.get("feedback"),
+        }) for chunk in chunks
+    ]
 
 
 def continue_after_reflection(state: PaperIngestionState):
     """Conditional router after reflection fact-checking.
 
     If feedback is present (discrepancy found) and retry count is less than max_debate_loops,
-    routes back to the consolidated specialist with the feedback.
+    routes back to Router_Proxy with the feedback.
     Otherwise, proceeds to the Supervisor network node.
     """
     from stratasift.config import get_runtime_config
@@ -47,7 +71,7 @@ def continue_after_reflection(state: PaperIngestionState):
 
     # We restrict the retry loop to a maximum of max_loops
     if feedback and retry_count < max_loops:
-        return "Consolidated_Specialist"
+        return "Router_Proxy"
 
     return "Supervisor_Network"
 
@@ -57,7 +81,8 @@ workflow = StateGraph(PaperIngestionState)
 
 # Add agents and tool nodes
 workflow.add_node("Supervisor_Triage", supervisor_triage_node)
-workflow.add_node("Consolidated_Specialist", consolidated_specialist_node)
+workflow.add_node("Router_Proxy", router_proxy_node)
+workflow.add_node("Specialist_Worker", specialist_worker_node)
 workflow.add_node("Reflection_Review", reflection_review_node)
 workflow.add_node("Supervisor_Network", supervisor_network_node)
 
@@ -67,18 +92,25 @@ workflow.add_edge(START, "Supervisor_Triage")
 # Triage conditional routing
 workflow.add_conditional_edges(
     "Supervisor_Triage",
-    continue_to_specialist,
-    ["Consolidated_Specialist", "Supervisor_Network"],
+    continue_after_triage,
+    ["Router_Proxy", "Supervisor_Network"],
 )
 
-# Consolidated specialist routes to reflection review
-workflow.add_edge("Consolidated_Specialist", "Reflection_Review")
+# Dynamic Fan-Out from Proxy
+workflow.add_conditional_edges(
+    "Router_Proxy", 
+    route_to_specialists, 
+    ["Specialist_Worker"]
+)
+
+# Fan-in: All workers automatically resolve and proceed to Reflection
+workflow.add_edge("Specialist_Worker", "Reflection_Review")
 
 # Reflection verification routing
 workflow.add_conditional_edges(
     "Reflection_Review",
     continue_after_reflection,
-    ["Consolidated_Specialist", "Supervisor_Network"],
+    ["Router_Proxy", "Supervisor_Network"],
 )
 
 # Compile final graph

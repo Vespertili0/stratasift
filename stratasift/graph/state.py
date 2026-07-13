@@ -3,6 +3,15 @@ import operator
 from stratasift.core.models import SanitisedLiterature
 
 
+class SpecialistWorkerState(TypedDict):
+    """Sub-state for individual parallel worker nodes."""
+    chunk: Dict[str, str]
+    reading_directive: str
+    central_hypothesis: str
+    match_type: str
+    feedback: Optional[Dict[str, str]]
+
+
 class PaperIngestionState(TypedDict):
     """The state dictionary for the paper ingestion and synthesis workflow.
 
@@ -27,7 +36,7 @@ class PaperIngestionState(TypedDict):
     feedback: Optional[
         Dict[str, str]
     ]  # Dict mapping specialist type to feedback string
-    atomic_insights: List[Any]  # List of synthesised Pydantic AtomicInsight models
+    atomic_insights: Annotated[List[Any], operator.add]  # List of synthesised Pydantic AtomicInsight models
     source_filename: str  # Original name of the ingested markdown file
     routing_results: List[
         Dict[str, Any]

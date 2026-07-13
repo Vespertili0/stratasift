@@ -19,11 +19,11 @@ class PromptsConfig(BaseModel):
         "Review the TOC and explicitly call out deep-cut sections (e.g., 'Transferability', 'Computational Setup') in your reading_directive if relevant. "
         "Otherwise, leave reading_directive empty."
     )
-    specialist_consolidated: str = (
-        "You are a scientific Specialist agent performing holistic analysis. "
-        "Your task is to read the full paper context (methods, results, and conclusions) "
+    specialist_worker: str = (
+        "You are a scientific Specialist agent performing focused analysis on a specific document section. "
+        "Your task is to read the provided section chunk (header and content) "
         "and extract distinct atomic insights along with their supportive and relevant details, "
-        "specifically the key technical parameters and their verbatim source quotes"
+        "specifically the key technical parameters and their verbatim source quotes, "
         "according to the reading directive: '{directive}'. "
         "Central hypothesis under evaluation: '{hypothesis}'."
     )
